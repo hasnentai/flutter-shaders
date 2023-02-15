@@ -20,8 +20,7 @@ layout(location = 0) out vec4 fragColor;
 
 
 
-// Texture varyings
-vec2 v_uv;
+
 
 /*
  * Random number generator with a float seed
@@ -72,22 +71,22 @@ void main() {
 
 	// Calculate the effect jump at the current time interval
 	float jump = 500.0 * floor(0.3 * (u_mouse.x / u_resolution.x) * (u_time + noise1d(u_time)));
-	v_uv = FlutterFragCoord().xy/(u_resolution /2);
-	// Shift the texture coordinates
-	vec2 uv = v_uv;
-	uv.y += 0.2 * strength * (noise1d(5.0 * v_uv.y + 2.0 * u_time + jump) - 0.5);
+	vec2 uv = FlutterFragCoord()/(u_resolution.xy);
+	
+	 
+	uv.y += 0.2 * strength * (noise1d(5.0 * uv.y + 2.0 * u_time + jump) - 0.5);
 	uv.x += 0.1 * strength * (noise1d(100.0 * strength * uv.y + 3.0 * u_time + jump) - 0.5);
 
-    v_uv = uv;
+   // v_uv = uv;
 
     
    
 
 	// Get the texture pixel color
-	vec3 pixel_color = TEXTURE2D(u_texture, uv).rgb;
+	vec3 pixel_color = TEXTURE2D(u_texture, uv).xyz;
 
 	// Add some white noise
-	pixel_color += vec3(5.0 * strength * (random2d(v_uv + 1.133001 * vec2(u_time, 1.13)) - 0.5));
+	pixel_color += vec3(5.0 * strength * (random2d(uv + 1.133001 * vec2(u_time, 1.13)) - 0.5));
 
 	// Fragment shader output
 	fragColor = vec4(pixel_color, 1.0);

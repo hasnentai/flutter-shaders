@@ -119,16 +119,19 @@ class AnimatedShaderPainter extends CustomPainter {
   final Animation<double> animation;
   final Offset? mousePosition;
   final ui.Image image;
+  double frame = 1.0;
 
   @override
   void paint(Canvas canvas, Size size) {
-    print("${mousePosition?.dx} ${mousePosition?.dy}");
-    shader.setFloat(0, animation.value * 10);
-    shader.setFloat(1, size.width);
-    shader.setFloat(2, size.height);
-    shader.setFloat(3, mousePosition?.dx ?? 1056 / 2);
-    shader.setFloat(4, (mousePosition?.dy ?? 58 / 2));
+    print(size.aspectRatio);
+    shader.setFloat(0, animation.value);
+
+    shader.setFloat(3, 1056 / 2);
+    shader.setFloat(
+        4, -(size.height - (mousePosition?.dy ?? (58 / 2))) * size.aspectRatio);
+    shader.setFloat(5, frame = frame + 1.0);
     shader.setImageSampler(0, image);
+
     canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
   }
 
@@ -167,8 +170,8 @@ class AnimatedShaderState extends State<AnimatedShader>
       ..setFloat(0, 1)
       ..setFloat(1, widget.size.width.toDouble())
       ..setFloat(2, widget.size.height.toDouble())
-      ..setFloat(3, 1056)
-      ..setFloat(4, 58)
+      ..setFloat(3, 300)
+      ..setFloat(4, 300)
       ..setImageSampler(0, image!);
   }
 
