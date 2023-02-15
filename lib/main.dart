@@ -20,6 +20,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 void main() {
   runApp(const MyApp());
@@ -57,16 +58,18 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   bool _futuresInitialized = false;
 
-  static const String _shaderKey = 'shaders/example.frag';
+  static const String _shaderKey = 'shaders/example.glsl';
 
   Future<void> _initializeFutures() async {
     // Loading the shader from an asset is an asynchronous operation, so we
     // need to wait for it to be loaded before we can use it to generate
     // Shader objects.
     await FragmentProgramManager.initialize(_shaderKey);
+
     if (!mounted) {
       return;
     }
+
     setState(() {
       _futuresInitialized = true;
     });
@@ -91,8 +94,9 @@ class _MyHomePageState extends State<MyHomePage> {
             if (_futuresInitialized)
               AnimatedShader(
                 program: FragmentProgramManager.lookup(_shaderKey),
-                duration: const Duration(seconds: 2),
-                size: const Size(300, 300),
+                duration: const Duration(seconds: 1),
+                size: Size(MediaQuery.of(context).size.width,
+                    MediaQuery.of(context).size.height - 56),
               )
             else
               const Text('Loading...'),
@@ -107,14 +111,24 @@ class _MyHomePageState extends State<MyHomePage> {
 /// current animation value and uses the shader to configure the Paint
 /// object that draws a rectangle onto the canvas.
 class AnimatedShaderPainter extends CustomPainter {
-  AnimatedShaderPainter(this.shader, this.animation) : super(repaint: animation);
+  AnimatedShaderPainter(
+      this.shader, this.animation, this.mousePosition, this.image)
+      : super(repaint: animation);
 
   final ui.FragmentShader shader;
   final Animation<double> animation;
+  final Offset? mousePosition;
+  final ui.Image image;
 
   @override
   void paint(Canvas canvas, Size size) {
-    shader.setFloat(0, animation.value);
+    print("${mousePosition?.dx} ${mousePosition?.dy}");
+    shader.setFloat(0, animation.value * 10);
+    shader.setFloat(1, size.width);
+    shader.setFloat(2, size.height);
+    shader.setFloat(3, mousePosition?.dx ?? 1056 / 2);
+    shader.setFloat(4, (mousePosition?.dy ?? 58 / 2));
+    shader.setImageSampler(0, image);
     canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
   }
 
@@ -140,37 +154,49 @@ class AnimatedShader extends StatefulWidget {
 }
 
 class AnimatedShaderState extends State<AnimatedShader>
-                          with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late final ui.FragmentShader _shader;
+  Offset? mousePosition;
+  ui.Image? image;
+
+  Future<void> loadAsset() async {
+    final imageData = await rootBundle.load('assets/code.png');
+    image = await decodeImageFromList(imageData.buffer.asUint8List());
+    _shader = widget.program.fragmentShader()
+      ..setFloat(0, 1)
+      ..setFloat(1, widget.size.width.toDouble())
+      ..setFloat(2, widget.size.height.toDouble())
+      ..setFloat(3, 1056)
+      ..setFloat(4, 58)
+      ..setImageSampler(0, image!);
+  }
 
   @override
   void initState() {
     super.initState();
-    _shader = widget.program.fragmentShader()
-      ..setFloat(0, 0.0)
-      ..setFloat(1, widget.size.width.toDouble())
-      ..setFloat(2, widget.size.height.toDouble());
+    loadAsset();
+
     _controller = AnimationController(
       vsync: this,
       duration: widget.duration,
     )
-    ..addListener(() {
-      setState(() {});
-    })
-    ..addStatusListener((AnimationStatus status) {
-      switch (status) {
-        case AnimationStatus.completed:
-          _controller.reverse();
-          break;
-        case AnimationStatus.dismissed:
-          _controller.forward();
-          break;
-        default:
-          break;
-      }
-    })
-    ..forward();
+      ..addListener(() {
+        setState(() {});
+      })
+      ..addStatusListener((AnimationStatus status) {
+        switch (status) {
+          case AnimationStatus.completed:
+            _controller.repeat();
+            break;
+          case AnimationStatus.dismissed:
+            _controller.forward();
+            break;
+          default:
+            break;
+        }
+      })
+      ..forward();
   }
 
   @override
@@ -188,16 +214,27 @@ class AnimatedShaderState extends State<AnimatedShader>
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: AnimatedShaderPainter(_shader, _controller),
-      size: widget.size,
+    return MouseRegion(
+      onHover: (event) => {
+        setState(() {
+          mousePosition = event.position;
+        })
+      },
+      child: image != null
+          ? CustomPaint(
+              painter: AnimatedShaderPainter(
+                  _shader, _controller, mousePosition, image!),
+              size: widget.size,
+            )
+          : Container(),
     );
   }
 }
 
 /// A utility class for initializing shader programs from asset keys.
 class FragmentProgramManager {
-  static final Map<String, ui.FragmentProgram> _programs = <String, ui.FragmentProgram>{};
+  static final Map<String, ui.FragmentProgram> _programs =
+      <String, ui.FragmentProgram>{};
 
   static Future<void> initialize(String assetKey) async {
     if (!_programs.containsKey(assetKey)) {
